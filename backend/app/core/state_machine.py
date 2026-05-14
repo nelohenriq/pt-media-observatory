@@ -72,6 +72,24 @@ def transition(from_status: EventStatus, to_status: EventStatus) -> EventStatus:
         raise InvalidTransitionError(from_status, to_status)
     return to_status
 
+def transition_to_writer_pending(
+    from_status: EventStatus,
+    reliability_score: Optional[int],
+    undercoverage_score: Optional[int],
+    blocking_flags: Optional[List[str]] = None,
+) -> EventStatus:
+    """
+    Transition to writer_pending after enforcing drafting gate constraints.
+    Raises InvalidTransitionError if drafting is not allowed.
+    """
+    if not is_drafting_allowed(
+        reliability_score=reliability_score,
+        undercoverage_score=undercoverage_score,
+        blocking_flags=blocking_flags,
+    ):
+        raise InvalidTransitionError(from_status, EventStatus.WRITER_PENDING)
+    return transition(from_status, EventStatus.WRITER_PENDING)
+
 
 def is_drafting_allowed(
     reliability_score: Optional[int],

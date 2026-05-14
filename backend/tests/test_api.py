@@ -2,7 +2,7 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
 from app.main import app
-from app.core.state_machine import EventStatus, transition, can_transition, is_drafting_allowed
+from app.core.state_machine import EventStatus, transition, can_transition, is_drafting_allowed, transition_to_writer_pending, InvalidTransitionError
 
 
 @pytest.fixture

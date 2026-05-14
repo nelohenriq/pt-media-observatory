@@ -1,10 +1,8 @@
-import React from 'react';
-import { Button } from "@/components/ui/button";
-import { Link } from 'react-router-dom';
+import { Link } from "react-router-dom";
 
 const Navigation = () => {
   return (
-    <nav className="flex gap-2 mb-4">
+    <nav className="flex gap-4 mb-4 p-3 bg-white rounded-lg shadow-sm">
       <Link to="/submission" className="text-sm font-medium text-blue-600 hover:underline">
         Submission
       </Link>

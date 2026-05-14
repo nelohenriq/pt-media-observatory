@@ -1,110 +1,73 @@
-import { useState } from 'react';
-import { Button, Checkbox, FormControl, Label, Card, CardHeader, CardBody, CardTitle, Dialog, DialogOverlay, DialogContent, DialogHeader, DialogTitle, DialogBody, Switch } from '@/components/ui';
+import { useState } from "react";
 
-type Draft = {
+interface ReviewItem {
   id: string;
   title: string;
-  content: string;
-  status: 'draft' | 'approved' | 'rejected' | 'revision';
-  riskScore: number;
-  sourceOutlets?: string[];
-};
+  status: string;
+  score?: number;
+}
 
-type Props = {
-  draft: Draft;
-  onClose?: () => void;
-};
+export default function ReviewPanel() {
+  const [items, setItems] = useState<ReviewItem[]>([]);
 
-export default function ReviewPanel({ draft, onClose }: Props) {
-  const [showDraftPreview, setShowDraftPreview] = useState(true);
-  const [riskWarnings, setRiskWarnings] = useState<string[]>([]);
-  const [selectedOutlets, setSelectedOutlets] = useState<string[]>(draft.sourceOutlets ?? []);
-
-  // Simulated risk detection
-  useState(() => {
-    const warnings: string[] = [];
-    if (draft.riskScore > 70) warnings.push('High source concentration detected');
-    if (draft.content.includes('confidential') && !draft.content.includes('public')) warnings.push('Potential confidential content');
-    setRiskWarnings(warnings);
-  }, []);
-
-  const handleApprove = async () => {
-    // TODO: call API to approve draft
-    // await approveDraft(draft.id);
-    setShowDraftPreview(false);
+  const approve = (id: string) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "approved" } : item
+      )
+    );
   };
 
-  const handleReject = async () => {
-    // TODO: call API to reject draft
-    setShowDraftPreview(false);
-  };
-
-  const handleRequestRevision = async () => {
-    // TODO: call API to request revision
-    setShowDraftPreview(false);
-  };
-
-  const handleForceApprove = async () => {
-    // TODO: call API to force approve draft
-    setShowDraftPreview(false);
+  const reject = (id: string) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "rejected" } : item
+      )
+    );
   };
 
   return (
-    <Dialog as={DialogOverlay}>
-      <Dialog as={Dialog} onClose={onClose}>
-        <DialogHeader>Review Draft: {draft.title}</DialogHeader>
-        <DialogBody className="p-4 space-y-4">
-          {/* Risk Flags Panel */}
-          <Card>
-            <CardHeader>Risk Analysis</CardHeader>
-            <CardBody>
-              {riskWarnings.length > 0 ? (
-                <ul className="space-y-2 text-sm">
-                  {riskWarnings.map((warn, i) => (
-                    <li key={i} className="flex items-baseline justify-between">
-                      <span className="text-red-600">{warn}</span>
-                      <span className="text-xs flex items-center gap-1">
-                        <span className="rounded-full px-1 py-0.5 bg-red-100 text-red-600 text-xs">⚠</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-green-600">No critical risks detected.</p>
+    <div className="max-w-4xl mx-auto px-4 py-8 bg-gray-50 rounded-lg shadow-sm">
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Review Panel</h1>
+      {items.length === 0 && (
+        <div className="text-center py-10 text-gray-500">No items pending review.</div>
+      )}
+      <ul className="space-y-4">
+        {items.map((item) => (
+          <li
+            key={item.id}
+            className={`p-4 bg-white rounded-lg shadow-sm border-l-4 ${
+              item.status === "approved" ? "border-green-500" :
+              item.status === "rejected" ? "border-red-500" : "border-yellow-400"
+            }`}
+          >
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="font-medium text-gray-900">{item.title}</h3>
+                <span className="text-sm text-gray-500">
+                  {item.status} — score: {item.score ?? "—"}
+                </span>
+              </div>
+              {item.status === "pending" && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => approve(item.id)}
+                    className="px-3 py-1 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => reject(item.id)}
+                    className="px-3 py-1 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700"
+                  >
+                    Reject
+                  </button>
+                </div>
               )}
-
-              <Switch
-                className="self-end"
-                checked={draft.status === 'approved'}
-                onCheckedChange={checked => {
-                  // handle status change logic
-                }}
-                defaultChecked
-              >
-                Approved?
-              </Switch>
-            </CardBody>
-          </Card>
-
-          {/* Draft Content Preview */}
-          <Card>
-            <CardHeader>Draft Content</CardHeader>
-            <CardBody>
-              <pre className="text-sm whitespace-pre-wrap bg-gray-50 p-3 rounded-md overflow-x-auto">{draft.content}</pre>
-            </CardBody>
-          </Card>
-
-          {/* Action Buttons */}
-          <div className="flex gap-2 justify-end pt-2">
-            <Button onClick={handleRequestRevision}>Request Revision</Button>
-            <Button onClick={handleReject}>Reject</Button>
-            <Button variant="primary" onClick={handleApprove}>Approve</Button>
-            <Button variant="danger" onClick={handleForceApprove}>
-              Force Approve
-            </Button>
-          </div>
-        </DialogBody>
-      </Dialog>
-    </Dialog>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
