@@ -2,7 +2,9 @@ fastapi
 uvicorn[standard]
 sqlalchemy
 alembic
-celery
-redis
 python-dotenv
 passlib[argon2]
+python-jose[cryptography]
+pydantic-settings
+python-multipart
+httpx
