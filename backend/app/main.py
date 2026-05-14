@@ -1,10 +1,11 @@
 """Main entry point for PT Media Observatory FastAPI application."""
 import logging
 from fastapi import FastAPI
+
 from .config import Settings
-from .database import engine
+from .database import create_tables
 from .api.auth import router as auth_router
-from .api import submissions, events
+from .api import submissions, events, internal
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +28,7 @@ app = FastAPI(
 app.include_router(auth_router, prefix="/auth")
 app.include_router(submissions.router, prefix="/submissions")
 app.include_router(events.router, prefix="/events")
+app.include_router(internal.router)
 
 # Health check endpoint
 @app.get("/health", tags=["health"])
@@ -40,6 +42,8 @@ async def health_check():
 async def startup_event():
     """Initialize DB tables on startup (development only)."""
     logger.info("Starting PT Media Observatory backend")
+    create_tables()
+    logger.info("Database tables created/verified")
     logger.info(f"Running on port {settings.port}")
 
 

@@ -422,6 +422,32 @@ class EventReviewAction(Base):
 
 
 # ============================================================
+# Kanban Task Sync
+# ============================================================
+
+class KanbanTaskSync(Base):
+    """Tracks the mapping between kanban task IDs and pipeline stage runs."""
+    __tablename__ = "kanban_task_sync"
+
+    id = Column(PostgreSQLUUID(as_uuid=True), primary_key=True, default=uuid4)
+    event_id = Column(PostgreSQLUUID(as_uuid=True), ForeignKey("event.id", ondelete="CASCADE"), nullable=False)
+    stage = Column(Enum(StageName), nullable=False)
+    kanban_task_id = Column(String(255), nullable=False, unique=True)
+    stage_status = Column(Enum(StageStatus), nullable=False, default=StageStatus.pending)
+    kanban_status = Column(String(50), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_kanban_sync_event", "event_id"),
+        Index("idx_kanban_sync_task_id", "kanban_task_id"),
+        Index("idx_kanban_sync_stage_status", "stage", "stage_status"),
+    )
+
+    event = relationship("Event", backref="kanban_syncs")
+
+
+# ============================================================
 # Event Publications
 # ============================================================
 

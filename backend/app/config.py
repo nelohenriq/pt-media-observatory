@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     database_url: str = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/ptmedia")
+    internal_api_key: str = os.getenv("INTERNAL_API_KEY", "dev-internal-key")
 
     class Config:
         env_file = ".env"

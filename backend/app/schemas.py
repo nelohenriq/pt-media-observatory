@@ -462,3 +462,57 @@ ResearchRead = EventResearchResponse
 CoverageRead = EventCoverageResponse
 RiskRead = EventRiskResponse
 EvidenceSourceRead = EvidenceSourceResponse
+
+
+# ============================================================
+# Internal / Kanban Poller Schemas
+# ============================================================
+
+class StageNameEnum(str, Enum):
+    curation = "curation"
+    research = "research"
+    coverage = "coverage"
+    risk = "risk"
+    writer = "writer"
+
+
+class StageStatusEnum(str, Enum):
+    pending = "pending"
+    running = "running"
+    succeeded = "succeeded"
+    failed = "failed"
+    cancelled = "cancelled"
+
+
+class KanbanTaskRegister(BaseModel):
+    """Register a kanban task ID for a pipeline stage."""
+    event_id: UUID
+    stage: StageNameEnum
+    kanban_task_id: str
+
+
+class KanbanTaskRegisterResponse(BaseModel):
+    id: UUID
+    event_id: UUID
+    stage: StageNameEnum
+    kanban_task_id: str
+    stage_status: StageStatusEnum
+
+
+class PollerAdvanceResponse(BaseModel):
+    """Result of one poller advance cycle."""
+    events_checked: int
+    tasks_spawned: List[dict] = []
+    events_advanced: List[dict] = []
+    errors: List[str] = []
+
+
+class EventKanbanStatus(BaseModel):
+    """Current kanban status for an event's pipeline stages."""
+    event_id: UUID
+    title: str
+    curation: Optional[str] = None
+    research: Optional[str] = None
+    coverage: Optional[str] = None
+    risk: Optional[str] = None
+    writer: Optional[str] = None
