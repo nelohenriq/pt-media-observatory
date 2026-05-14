@@ -8,12 +8,12 @@
 #   make lint       — run all linters
 #   make ci         — run lint + test (full CI simulation)
 #   make build      — build Docker images
-#   make up         — start all services via docker compose
+#   make up         — generate certs + start all services via docker compose
 #   make down       — stop all services
 #   make clean      — remove build artifacts and containers
 # ============================================================
 
-.PHONY: test lint ci build up down clean
+.PHONY: test lint ci build up down clean certs install
 
 # ---- Full CI simulation ----
 ci: lint test
@@ -48,16 +48,28 @@ lint-frontend:
 	cd frontend && npm run lint
 
 # ---- Docker ----
-build:
+build: certs
 	docker compose build
 
 build-backend:
-	docker compose build backend celery_worker
+	docker compose build backend
 
 build-frontend:
 	docker compose build frontend
 
-up:
+certs:
+	@echo "=== Generating self-signed TLS certificates ==="
+	mkdir -p certs
+	openssl req -x509 -nodes -newkey ec:<(openssl ecparam -name prime256v1) \
+		-keyout certs/privkey.pem -out certs/fullchain.pem \
+		-days 365 -subj "/CN=localhost" \
+		-addext "subjectAltName=DNS:localhost,IP:127.0.0.1" 2>/dev/null || \
+	openssl req -x509 -nodes -newkey rsa:2048 \
+		-keyout certs/privkey.pem -out certs/fullchain.pem \
+		-days 365 -subj "/CN=localhost"
+	@echo "✅ Self-signed certs generated in ./certs/"
+
+up: certs
 	docker compose up -d
 
 down:
