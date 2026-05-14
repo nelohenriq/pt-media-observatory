@@ -19,7 +19,7 @@ def get_db():
         db.close()
 
 
-@router.post("/events/", response_model=schemas.EventRead, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=schemas.EventRead, status_code=status.HTTP_201_CREATED)
 async def create_event(
     event_in: schemas.EventCreate,
     db: Session = Depends(get_db),
@@ -47,7 +47,7 @@ async def create_event(
     return db_event
 
 
-@router.get("/events/", response_model=List[schemas.EventRead])
+@router.get("/", response_model=List[schemas.EventRead])
 async def list_events(
     db: Session = Depends(get_db),
     current_user: dict = Depends(security.get_current_user),
@@ -56,7 +56,7 @@ async def list_events(
     return db.query(models.Event).all()
 
 
-@router.get("/events/{event_id}", response_model=schemas.EventRead)
+@router.get("/{event_id}", response_model=schemas.EventRead)
 async def get_event(
     event_id: UUID,
     db: Session = Depends(get_db),

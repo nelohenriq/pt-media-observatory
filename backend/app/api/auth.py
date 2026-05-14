@@ -52,7 +52,7 @@ def get_current_user(
 
 # ---------------------------- Auth Endpoints ----------------------------
 
-@router.post("/auth/register", response_model=schemas.UserRead, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
 async def register_user(
     user_in: schemas.UserCreate,
     db: Session = Depends(get_db),
@@ -77,7 +77,7 @@ async def register_user(
     return db_user
 
 
-@router.post("/auth/login", response_model=schemas.Token)
+@router.post("/login", response_model=schemas.Token)
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),

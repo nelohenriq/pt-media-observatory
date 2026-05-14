@@ -263,7 +263,7 @@ class EvidenceSource(Base):
     source_type = Column(String(100), nullable=False)  # 'official_doc', 'ngo_report', 'article', 'social_post', etc.
     source_url = Column(Text, nullable=True)
     content_text = Column(Text, nullable=True)
-    metadata = Column(JSONB, nullable=False, default=dict)
+    metadata_json = Column("metadata", JSONB, nullable=False, default=dict)
     retrieved_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 

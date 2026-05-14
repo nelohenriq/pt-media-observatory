@@ -21,7 +21,7 @@ def get_db():
         db.close()
 
 
-@router.post("/submissions/", response_model=schemas.SubmissionRead, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=schemas.SubmissionRead, status_code=status.HTTP_201_CREATED)
 async def create_submission(
     sub_in: schemas.SubmissionCreate,
     db: Session = Depends(get_db),
@@ -48,7 +48,7 @@ async def create_submission(
     return db_submission
 
 
-@router.get("/submissions/", response_model=List[schemas.SubmissionRead])
+@router.get("/", response_model=List[schemas.SubmissionRead])
 async def list_submissions(
     db: Session = Depends(get_db),
     current_user: dict = Depends(security.get_current_user),
@@ -61,7 +61,7 @@ async def list_submissions(
     )
 
 
-@router.get("/submissions/{sub_id}", response_model=schemas.SubmissionRead)
+@router.get("/{sub_id}", response_model=schemas.SubmissionRead)
 async def get_submission(
     sub_id: UUID,
     db: Session = Depends(get_db),
@@ -78,7 +78,7 @@ async def get_submission(
     return db_submission
 
 
-@router.put("/submissions/{sub_id}", response_model=schemas.SubmissionRead)
+@router.put("/{sub_id}", response_model=schemas.SubmissionRead)
 async def update_submission(
     sub_id: UUID,
     sub_in: schemas.SubmissionUpdate,
@@ -101,7 +101,7 @@ async def update_submission(
     return db_submission
 
 
-@router.delete("/submissions/{sub_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{sub_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_submission(
     sub_id: UUID,
     db: Session = Depends(get_db),

@@ -2,9 +2,9 @@
 import logging
 from fastapi import FastAPI
 from .config import Settings
-from .database import engine, Base
-from .auth import auth_router
-from .api import submissions, events, drafts, publications, stages
+from .database import engine
+from .api.auth import router as auth_router
+from .api import submissions, events
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -18,7 +18,6 @@ app = FastAPI(
     title="PT Media Observatory Backend",
     version="0.1.0",
     description="Backend for PT Media Observatory - v1 implementation",
-    # Root endpoint for health check
     root_path="/",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -26,11 +25,8 @@ app = FastAPI(
 
 # Include routers
 app.include_router(auth_router, prefix="/auth")
-app.include_router(submissions.router)
-app.include_router(events.router)
-app.include_router(drafts.router)
-app.include_router(publications.router)
-app.include_router(stages.router)
+app.include_router(submissions.router, prefix="/submissions")
+app.include_router(events.router, prefix="/events")
 
 # Health check endpoint
 @app.get("/health", tags=["health"])
@@ -38,14 +34,14 @@ async def health_check():
     """Simple health check endpoint."""
     return {"status": "ok", "namespace": settings.project_namespace}
 
+
 # Startup event
 @app.on_event("startup")
 async def startup_event():
-    # Ensure DB tables exist (for dev)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables initialized")
-    logger.info(f"Starting PT Media Observatory backend on port {settings.port}")
+    """Initialize DB tables on startup (development only)."""
+    logger.info("Starting PT Media Observatory backend")
+    logger.info(f"Running on port {settings.port}")
+
 
 # Shutdown event
 @app.on_event("shutdown")

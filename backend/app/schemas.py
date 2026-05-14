@@ -443,3 +443,22 @@ class HealthResponse(BaseModel):
     version: str
     database: str
     timestamp: datetime
+
+
+# ============================================================
+# Aliases for API compatibility
+# ============================================================
+
+UserRead = UserResponse
+SubmissionRead = SubmittedItemResponse
+SubmissionCreate = SubmittedItemCreate
+SubmissionUpdate = SubmittedItemCreate
+EventRead = EventResponse
+EventCreate = EventResponse
+DraftRead = DraftResponse
+PublicationRead = PublicationResponse
+StageRunRead = StageRunResponse
+ResearchRead = EventResearchResponse
+CoverageRead = EventCoverageResponse
+RiskRead = EventRiskResponse
+EvidenceSourceRead = EvidenceSourceResponse

@@ -102,7 +102,7 @@ class TestAuth:
 class TestEvents:
     @pytest.mark.anyio
     async def test_list_events_requires_auth(self, client):
-        resp = await client.get("/events")
+        resp = await client.get("/events/")
         assert resp.status_code in (200, 401, 403)
 
     @pytest.mark.anyio
@@ -116,7 +116,7 @@ class TestEvents:
 class TestSubmissions:
     @pytest.mark.anyio
     async def test_create_submission_requires_auth(self, client):
-        resp = await client.post("/submissions", json={"source_url": "https://example.com"})
+        resp = await client.post("/submissions/", json={"source_url": "https://example.com"})
         assert resp.status_code in (401, 403, 422)
 
 
