@@ -77,18 +77,63 @@ def transition_to_writer_pending(
     reliability_score: Optional[int],
     undercoverage_score: Optional[int],
     blocking_flags: Optional[List[str]] = None,
+    force_approve: bool = False,
+    editor_note: Optional[str] = None,
 ) -> EventStatus:
     """
     Transition to writer_pending after enforcing drafting gate constraints.
-    Raises InvalidTransitionError if drafting is not allowed.
+
+    If force_approve=True, bypasses score-based gate (reliability ≥ 2, undercoverage ≥ 1)
+    but still enforces blocking risk flags and requires editor_note.
+
+    Raises InvalidTransitionError if:
+      - transition is not structurally valid
+      - force_approve=True but editor_note is missing
+      - any blocking risk flag is present (force_approve still blocks these)
     """
+    if not can_transition(from_status, EventStatus.WRITER_PENDING):
+        raise InvalidTransitionError(from_status, EventStatus.WRITER_PENDING)
+
     if not is_drafting_allowed(
         reliability_score=reliability_score,
         undercoverage_score=undercoverage_score,
         blocking_flags=blocking_flags,
     ):
-        raise InvalidTransitionError(from_status, EventStatus.WRITER_PENDING)
+        if force_approve:
+            if not editor_note:
+                raise ValueError("force_approve requires editor_note")
+            # Still enforce blocking flags even for force-approve
+            flags = blocking_flags or []
+            for flag in flags:
+                if flag in BLOCKING_RISK_FLAGS:
+                    raise ValueError(f"force_approve cannot bypass blocking flag: {flag}")
+        else:
+            raise InvalidTransitionError(from_status, EventStatus.WRITER_PENDING)
+
     return transition(from_status, EventStatus.WRITER_PENDING)
+
+
+def transition_to_approved(
+    from_status: EventStatus,
+    force_approve: bool = False,
+    editor_note: Optional[str] = None,
+) -> EventStatus:
+    """
+    Transition to APPROVED (ready for publication).
+
+    Available from READY_FOR_REVIEW or NEEDS_EDITOR_DECISION.
+    force_approve allows bypassing the normal review gate with editor_note.
+    """
+    if not can_transition(from_status, EventStatus.APPROVED):
+        raise InvalidTransitionError(from_status, EventStatus.APPROVED)
+
+    if force_approve:
+        if not editor_note:
+            raise ValueError("force_approve requires editor_note")
+        # Note: blocking flags already evaluated at RISK_COMPLETE stage;
+        # force_approve from here is an editorial override, not a safety bypass
+
+    return transition(from_status, EventStatus.APPROVED)
 
 
 def is_drafting_allowed(
@@ -97,9 +142,9 @@ def is_drafting_allowed(
     blocking_flags: Optional[List[str]] = None,
 ) -> bool:
     """Drafting gate: check if event can proceed to writer stage."""
-    if reliability_score is None or reliability_score < 2:
+    if reliability_score is None or not (2 <= reliability_score <= 5):
         return False
-    if undercoverage_score is None or undercoverage_score < 1:
+    if undercoverage_score is None or not (1 <= undercoverage_score <= 5):
         return False
     flags = blocking_flags or []
     for flag in flags:
