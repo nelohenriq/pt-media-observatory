@@ -489,6 +489,7 @@ class KanbanTaskRegister(BaseModel):
     event_id: UUID
     stage: StageNameEnum
     kanban_task_id: str
+    stage_status: Optional[StageStatusEnum] = None  # if omitted, defaults to pending
 
 
 class KanbanTaskRegisterResponse(BaseModel):

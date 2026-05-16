@@ -27,6 +27,7 @@ from ..schemas import (
     PollerAdvanceResponse,
     EventKanbanStatus,
     StageNameEnum,
+    StageStatusEnum,
 )
 from ..services import kanban_sync
 
@@ -57,14 +58,20 @@ def register_kanban_task(
 
     Called by profile agents after they create a child kanban task,
     so the backend can track the task and poll its completion.
+    When stage_status is passed as 'succeeded', the next pipeline stage
+    is spawned immediately (no need to wait for the next poll cycle).
     """
-    sync = kanban_sync.register_task(db, body.event_id, body.stage, body.kanban_task_id)
+    # Convert schema enum to model enum if provided
+    stage_status = StageStatus(body.stage_status.value) if body.stage_status else None
+    sync = kanban_sync.register_task(
+        db, body.event_id, body.stage, body.kanban_task_id, stage_status
+    )
     return KanbanTaskRegisterResponse(
         id=sync.id,
         event_id=sync.event_id,
         stage=StageNameEnum(sync.stage.value),
         kanban_task_id=sync.kanban_task_id,
-        stage_status=sync.stage_status.value,
+        stage_status=StageStatusEnum(sync.stage_status.value),
     )
 
 

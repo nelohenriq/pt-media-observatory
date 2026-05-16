@@ -84,7 +84,8 @@ def get_task_status(kanban_task_id: str) -> Optional[str]:
         return None
     try:
         data = json.loads(stdout)
-        return data.get("status")
+        # Status lives at data["task"]["status"] for the --json output
+        return data.get("task", {}).get("status")
     except (json.JSONDecodeError, KeyError):
         return None
 
@@ -104,6 +105,7 @@ def create_kanban_task(
         "create", title,
         "--body", json.dumps(body),
         "--assignee", assignee,
+        "--max-runtime", "600",
         "--json",
     ]
     if parent_task_id:
@@ -159,6 +161,7 @@ def _status_from_kanban(kanban_status: str) -> StageStatus:
         "ready": StageStatus.pending,
         "running": StageStatus.running,
         "blocked": StageStatus.pending,
+        "archived": StageStatus.cancelled,
     }
     return mapping.get(kanban_status, StageStatus.pending)
 
@@ -176,10 +179,9 @@ def advance_event(db: SASession, event: Event) -> list[dict]:
         research_sync = _get_sync(db, event.id, StageName.research)
         coverage_sync = _get_sync(db, event.id, StageName.coverage)
 
+        spawned = False
         if research_sync is None:
-            # Find curator task to use as parent
             curator_tid = get_curator_task_id(event.id)
-
             rid = create_kanban_task(
                 title=f"Research: {event.title[:80]}",
                 assignee="researcher_pt",
@@ -190,6 +192,7 @@ def advance_event(db: SASession, event: Event) -> list[dict]:
                 _upsert_sync(db, event.id, StageName.research, rid, StageStatus.pending)
                 actions.append({"action": "spawned", "stage": "research", "task_id": rid})
                 logger.info("Spawned research task %s for event %s", rid, event.id)
+                spawned = True
 
         if coverage_sync is None:
             curator_tid = curator_tid or get_curator_task_id(event.id)
@@ -203,11 +206,20 @@ def advance_event(db: SASession, event: Event) -> list[dict]:
                 _upsert_sync(db, event.id, StageName.coverage, cid, StageStatus.pending)
                 actions.append({"action": "spawned", "stage": "coverage", "task_id": cid})
                 logger.info("Spawned coverage task %s for event %s", cid, event.id)
+                spawned = True
 
-        # Only mark research_pending/coverage_pending when we've actually spawned
-        if actions:
+        if spawned:
             event.status = EventStatus.research_pending
             db.commit()
+        elif research_sync and coverage_sync:
+            # Tasks already exist — check if both are done
+            if research_sync.stage_status == StageStatus.succeeded and \
+               coverage_sync.stage_status == StageStatus.succeeded:
+                # Both done — advance to allow risk stage to be triggered
+                event.status = EventStatus.research_complete
+                db.commit()
+                _check_and_spawn_risk(db, event, actions)
+                return actions  # risk check is done, don't re-poll
 
     # ── 2. Poll running stages and advance when done ───────────────────────
     all_syncs = _get_all_syncs(db, event.id)
@@ -227,7 +239,43 @@ def advance_event(db: SASession, event: Event) -> list[dict]:
         if new_stage_status == StageStatus.succeeded:
             _advance_event_on_stage_done(db, event, sync.stage, actions)
             db.commit()
-            return actions  # don't re-check this event in the same cycle
+            # Don't return — keep processing other syncs in case both research
+            # and coverage just completed in the same cycle (risk needs both)
+
+        elif new_stage_status == StageStatus.cancelled:
+            # Task was archived — re-spawn it so the pipeline continues
+            # (e.g. task timed out and was archived; we need a replacement)
+            if sync.stage == StageName.risk:
+                # Reset sync to pending and spawn replacement risk task
+                sync.stage_status = StageStatus.pending
+                db.flush()
+                rid = create_kanban_task(
+                    title=f"Risk review: {event.title[:80]}",
+                    assignee="risk_reviewer",
+                    body={"event_id": str(event.id), "stage": "risk"},
+                )
+                if rid:
+                    sync.kanban_task_id = rid
+                    sync.stage_status = StageStatus.pending
+                    sync.kanban_status = None
+                    actions.append({"action": "respawned", "stage": "risk", "task_id": rid})
+                    logger.info("Respawned risk task %s for event %s after archive", rid, event.id)
+                db.commit()
+
+    # After polling all syncs, do a final check to spawn risk if both research
+    # and coverage just completed (handles the case where the second stage
+    # finished and this poll cycle is the first to notice both are done).
+    # This also handles events stuck in coverage_complete because the
+    # early-return in _advance_event_on_stage_done prevented risk spawning.
+    research_sync = _get_sync(db, event.id, StageName.research)
+    coverage_sync = _get_sync(db, event.id, StageName.coverage)
+    if research_sync and coverage_sync:
+        if research_sync.stage_status == StageStatus.succeeded and \
+           coverage_sync.stage_status == StageStatus.succeeded:
+            # Update event status to research_complete and spawn risk
+            event.status = EventStatus.research_complete
+            _check_and_spawn_risk(db, event, actions)
+            db.commit()
 
     db.commit()
     return actions
@@ -351,11 +399,35 @@ def register_task(
     event_id: UUID,
     stage: StageNameEnum,
     kanban_task_id: str,
+    stage_status: Optional[StageStatus] = None,
 ) -> KanbanTaskSync:
-    """Register (or update) a kanban task ID for a pipeline stage."""
+    """Register (or update) a kanban task ID for a pipeline stage.
+
+    When stage_status is passed as 'succeeded', immediately advance the
+    pipeline so downstream stages are triggered without waiting for the
+    next poll cycle.
+    """
     stage_model = _stage_from_str(stage.value)
-    sync = _upsert_sync(db, event_id, stage_model, kanban_task_id, StageStatus.pending)
-    logger.info("Registered kanban task %s for event %s stage %s", kanban_task_id, event_id, stage.value)
+    status = stage_status or StageStatus.pending
+    sync = _upsert_sync(db, event_id, stage_model, kanban_task_id, status)
+    logger.info(
+        "Registered kanban task %s for event %s stage %s (status=%s)",
+        kanban_task_id, event_id, stage.value, status.value,
+    )
+
+    # Immediately trigger pipeline advancement when a stage completes,
+    # so next stages are spawned in the same API call that marks them done.
+    if status == StageStatus.succeeded:
+        event = db.get(Event, event_id)
+        if event:
+            actions: list[dict] = []
+            _advance_event_on_stage_done(db, event, stage_model, actions)
+            logger.info(
+                "Stage %s completed for event %s — advanced to %s",
+                stage.value, event_id, event.status,
+            )
+            db.commit()
+
     return sync
 
 
@@ -373,11 +445,22 @@ def advance_all(db: SASession) -> dict:
 
     event_ids = list(set(s.event_id for s in pending_syncs))
 
-    # Also poll events in curation_complete (may need initial spawn)
-    curation_events = db.execute(
-        select(Event).where(Event.status == EventStatus.curation_complete)
+    # Also poll events in any non-terminal pipeline state —
+    # the polling loop handles each status correctly, so we include all
+    # intermediate states (research_pending, coverage_complete, risk_pending, etc.)
+    non_terminal_statuses = [
+        EventStatus.curation_complete,
+        EventStatus.research_pending,
+        EventStatus.coverage_complete,
+        EventStatus.research_complete,
+        EventStatus.risk_pending,
+        EventStatus.risk_complete,
+        # ready_for_review is terminal for the pipeline — skip it
+    ]
+    pipeline_events = db.execute(
+        select(Event).where(Event.status.in_(non_terminal_statuses))
     ).scalars().all()
-    event_ids.extend(e.id for e in curation_events)
+    event_ids.extend(e.id for e in pipeline_events)
 
     events_checked = 0
     all_actions: list[dict] = []
